@@ -35,7 +35,7 @@
 	url = https://github.com/rime/marisa-trie
 [submodule "librime"]
 	path = librime
-	url = https://github.com/rime/librime
+	url = https://github.com/mokapsing/librime
 [submodule "librime-lua"]
 	path = librime-lua
 	url = https://github.com/hchunhui/librime-lua
