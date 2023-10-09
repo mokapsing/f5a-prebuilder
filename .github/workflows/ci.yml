@@ -81,7 +81,6 @@ jobs:
           git remote set-url origin "https://${{ secrets.BOT_TOKEN }}@github.com/mokapsing/f5a-prebuilt"
           git config user.name "Fcitx5 Android Bot"
           git config user.email "102923727+android-fcitx5@users.noreply.github.com"
-          git pull
           git add .
           git diff-index --quiet HEAD || git commit -m "Auto update"
-          git push --set-upstream origin "HEAD:master" --follow-tags --atomic
+          git push --set-upstream origin "HEAD:master" --follow-tags --atomic -f
