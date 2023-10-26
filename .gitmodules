@@ -38,7 +38,7 @@
 	url = https://github.com/mokapsing/librime
 [submodule "librime-lua"]
 	path = librime-lua
-	url = https://github.com/hchunhui/librime-lua
+	url = https://github.com/mokapsing/librime-lua
 [submodule "librime-octagram"]
 	path = librime-octagram
 	url = https://github.com/lotem/librime-octagram
