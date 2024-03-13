@@ -15,7 +15,14 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
-          pacman -Syu --needed --noconfirm ghc git unzip haskell-shake haskell-aeson-pretty libime opencc jdk17-openjdk python cabal-install
+          pacman -Syu --needed --noconfirm \
+            git unzip ghc cabal-install haskell-shake haskell-aeson-pretty \
+            cmake extra-cmake-modules ninja fmt fcitx5 boost python opencc jdk17-openjdk check
+
+      - name: Fetch source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
@@ -24,11 +31,6 @@ jobs:
         run: |
           sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
           sdkmanager --install "cmake;${{ env.CMAKE_VERSION }}"
-
-      - name: Fetch source code
-        uses: actions/checkout@v3
-        with:
-          submodules: true
 
       - name: Build everything
         env:
@@ -41,13 +43,13 @@ jobs:
           ./build-cabal -j everything
 
       - name: Pack prebuilt libraries
-        #if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         run: |
           cd build
           mkdir prebuilt
-          for file in $(<artifacts.txt)
+          for TARGET in $(<artifacts.txt)
           do
-            cp -a "$file" prebuilt/
+            cp -a "$TARGET" prebuilt/
           done
           tar --zstd -cf prebuilt.tar.zst prebuilt/
 
@@ -58,7 +60,7 @@ jobs:
           path: build/prebuilt.tar.zst
 
       - name: Fetch fcitx5-android/prebuilt
-        #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/checkout@v3
         with:
           path: prebuilt
@@ -67,13 +69,13 @@ jobs:
           persist-credentials: false
 
       - name: Push to fcitx5-android/prebuilt
-        #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         working-directory: prebuilt
         run: |
-          for file in $(<../build/artifacts.txt)
+          rm -r ./*
+          for TARGET in $(<../build/artifacts.txt)
           do
-            rm -rf "$file"
-            cp -a "../build/$file" ./
+            cp -a "../build/$TARGET" ./
           done
           git remote set-url origin "https://${{ secrets.BOT_TOKEN }}@github.com/mokapsing/f5a-prebuilt"
           git config user.name "Fcitx5 Android Bot"
