@@ -1,0 +1,91 @@
+name: Manual-CI
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      ABI: "armeabi-v7a,arm64-v8a,x86,x86_64"
+      NDK_VERSION: "25.2.9519653"
+      CMAKE_VERSION: "3.22.1"
+      ANDROID_PLATFORM: "23"
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --needed --noconfirm \
+            git unzip ghc cabal-install haskell-shake haskell-aeson-pretty \
+            cmake extra-cmake-modules ninja fmt fcitx5 boost python opencc jre-openjdk gperf
+      - name: Fetch source code
+        uses: actions/checkout@v4
+        with:
+          # this only sync submodules specified in .gitmodules,
+          # because we don't want recursive submodules in glog, librime, etc.
+          submodules: true
+
+      - name: Fetch submodules
+        run: |
+          # it appears to be a bug when building in containers: https://github.com/actions/checkout/issues/915
+          git config --global --add safe.directory '*'
+          # fetch libime submodule kenlm since it's not in .gitmodules
+          git submodule update --init --recursive libime
+      - name: Update specific submodules to latest commit
+        run: |
+          git -C librime fetch origin master && git -C librime reset --hard origin/master
+          git -C librime-lua fetch origin master && git -C librime-lua reset --hard origin/master
+          git -C librime-octagram fetch origin master && git -C librime-octagram reset --hard origin/master
+          #git -C librime-predict fetch origin master && git -C librime-predict reset --hard origin/master
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "ndk;${{ env.NDK_VERSION }} cmake;${{ env.CMAKE_VERSION }}"
+
+      - name: Build everything
+        env:
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+        run: |
+          # use archlinux's dynamic only ghc
+          cabal configure --disable-library-vanilla --enable-shared --enable-executable-dynamic --ghc-options=-dynamic
+          ./build-cabal -j everything
+      - name: Pack prebuilt libraries
+        #if: github.event_name == 'pull_request'
+        run: |
+          cd build
+          mkdir prebuilt
+          for TARGET in $(<artifacts.txt)
+          do
+            cp -a "$TARGET" prebuilt/
+          done
+          tar --zstd -cf prebuilt.tar.zst prebuilt/
+      - name: Upload prebuilt to artifact
+        #if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          path: build/prebuilt.tar.zst
+
+      - name: Fetch fcitx5-android/prebuilt
+        #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/checkout@v3
+        with:
+          path: prebuilt
+          repository: fcitx5-android/prebuilt
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push to fcitx5-android/prebuilt
+        #if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        working-directory: prebuilt
+        run: |
+          rm -r ./*
+          for TARGET in $(<../build/artifacts.txt)
+          do
+            cp -a "../build/$TARGET" ./
+          done
+          git remote set-url origin "https://${{ secrets.BOT_TOKEN }}@github.com/mokapsing/f5a-prebuilt.git"
+          git config user.name "mokapsing"
+          git config user.email "mokapsing@users.noreply.github.com"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Auto update"
+          git push --set-upstream origin "HEAD:master" --follow-tags --atomic -f
