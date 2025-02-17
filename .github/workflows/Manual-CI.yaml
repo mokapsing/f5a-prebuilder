@@ -89,3 +89,8 @@ jobs:
           git add .
           git diff-index --quiet HEAD || git commit -m "Auto update"
           git push --set-upstream origin "HEAD:master" --follow-tags --atomic -f
+      - name: Trigger Repository B Action
+        run: |
+          curl -XPOST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            --data '{"event_type":"trigger-by-prebuilder","client_payload":{"ref":"refs/heads/new_cangjie_rime"}}' \
+            https://api.github.com/repos/mokapsing/fcitx5-android/dispatches
